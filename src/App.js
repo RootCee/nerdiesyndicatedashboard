@@ -672,33 +672,6 @@ function App() {
     }
   };
 
-  const transferTBAOwnership = async (tokenId) => {
-    if (!signer) {
-      alert("Please connect your wallet first.");
-      return;
-    }
-    try {
-      const accountData = tokenAccounts[tokenId];
-      if (!accountData || !accountData.deployed) {
-        setStatus("Token-bound account not active.");
-        return;
-      }
-      if (accountData.tbaOwner && accountData.tbaOwner.toLowerCase() === userAddress.toLowerCase()) {
-        setStatus("You already control this TBA.");
-        return;
-      }
-      const tbaContract = new Contract(accountData.predicted, TBA_ABI, signer);
-      setStatus("Transferring TBA ownership to your wallet...");
-      const tx = await tbaContract.transferOwnership(userAddress, { gasLimit: 200000 });
-      await tx.wait();
-      setStatus("TBA ownership transferred!");
-      fetchTokenBoundAccount(tokenId);
-    } catch (error) {
-      console.error("Error transferring TBA ownership:", error);
-      setStatus("Error transferring TBA ownership");
-    }
-  };
-
   const sendFundsFromTBA = async (tokenId, recipient, amount) => {
     if (!signer) {
       alert("Please connect your wallet first.");

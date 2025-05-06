@@ -75,7 +75,7 @@ function updateIPFSGateway(url) {
 
 async function getGasPriceFromEtherscan(apiKey) {
   try {
-    const url = `https://api.etherscan.io/api?module=proxy&action=eth_gasPrice&apikey=${apiKey}`;
+    const url = `https://api.basescan.org/api?module=proxy&action=eth_gasPrice&apikey=${apiKey}`;
     const response = await fetch(url);
     const data = await response.json();
     console.log("Etherscan gas price (hex):", data.result);
@@ -292,78 +292,105 @@ function App() {
   // Minting and TBA Functions (unchanged except Business NFT mint)
   // ----------------------------
   // Updated Business NFT Mint: mint directly to the connected wallet (EOA)
-  async function mintBusinessNFT() {
-    if (!signer || !selectedNFT) {
-      alert("Please connect your wallet and select an NFT.");
-      return;
-    }
-    try {
-      const erc1155Business = new Contract(ERC1155_BUSINESSES_ADDRESS, ERC1155_BUSINESSES_ABI, signer);
-      let price;
-      try {
-        price = await erc1155Business.businessPrice(businessType);
-      } catch (error) {
-        console.error("Error fetching businessPrice, using fallback", error);
-        price = FALLBACK_BUSINESS_PRICES[businessType];
-      }
-      const priceBigInt = BigInt(price.toString());
-      const totalCost = priceBigInt * BigInt(businessQuantity);
-      console.log(`Business price for type ${businessType}: ${priceBigInt}`);
-      console.log(`Quantity: ${businessQuantity}`);
-      console.log(`Total cost (wei): ${totalCost}`);
-      const gasPrice = await getGasPriceFromEtherscan(ETHERSCAN_API_KEY);
-      const overrides = { gasLimit: 300000, gasPrice: gasPrice.toString(), value: totalCost.toString() };
-      // Mint Business NFT directly to the connected wallet (EOA)
-      const tx = await erc1155Business.mintBusiness(businessType, businessQuantity, userAddress, overrides);
-      await tx.wait();
-      setBusinessStatus("Business NFT minted successfully!");
-      const bal = await fetchBusinessBalance(businessType, userAddress);
-      setBusinessBalance(bal);
-      // Refresh remaining supply for this business type
-      const remaining = await fetchRemainingSupply(businessType);
-      setRemainingSupplies(prev => ({ ...prev, [businessType]: remaining }));
-    } catch (error) {
-      console.error("Error minting business NFT:", error);
-      setBusinessStatus("Error minting business NFT");
-    }
+  // Updated mint functions for NerdieBlaqSyndicateBusinesses.sol
+
+// ───────────────────────────────────────────────────────────────
+// Mint Business NFT (bulk) to the user’s EOA, just like Remix
+// ───────────────────────────────────────────────────────────────
+async function mintBusinessNFT() {
+  if (!signer || !selectedNFT) {
+    return alert("Please connect your wallet and select an NFT.");
   }
 
-  // New function: Mint Business NFT for a specific type (used in the Your Business NFTs section)
-  async function mintBusinessForType(type) {
-    if (!signer) {
-      alert("Please connect your wallet first.");
-      return;
-    }
-    try {
-      const erc1155Business = new Contract(ERC1155_BUSINESSES_ADDRESS, ERC1155_BUSINESSES_ABI, signer);
-      let price;
-      try {
-        price = await erc1155Business.businessPrice(type);
-      } catch (error) {
-        console.error("Error fetching businessPrice for type", type, error);
-        price = FALLBACK_BUSINESS_PRICES[type];
-      }
-      const priceBigInt = BigInt(price.toString());
-      // For per-card mint, we mint one NFT
-      const totalCost = priceBigInt;
-      console.log(`Business price for type ${type}: ${priceBigInt}`);
-      console.log(`Total cost (wei) for one NFT: ${totalCost}`);
-      const gasPrice = await getGasPriceFromEtherscan(ETHERSCAN_API_KEY);
-      const overrides = { gasLimit: 300000, gasPrice: gasPrice.toString(), value: totalCost.toString() };
-      const tx = await erc1155Business.mintBusiness(type, 1, userAddress, overrides);
-      await tx.wait();
-      setBusinessStatus(`Business NFT type ${type} minted successfully!`);
-      // Refresh business balance for this type
-      const bal = await fetchBusinessBalance(type, userAddress);
-      setBusinessBalance(bal);
-      // Also update the remaining supply for this type
-      const remaining = await fetchRemainingSupply(type);
-      setRemainingSupplies(prev => ({ ...prev, [type]: remaining }));
-    } catch (error) {
-      console.error("Error minting business NFT for type", type, error);
-      setBusinessStatus(`Error minting business NFT type ${type}`);
-    }
+  // 1) Instantiate contract
+  const erc1155 = new Contract(
+    ERC1155_BUSINESSES_ADDRESS,
+    ERC1155_BUSINESSES_ABI,
+    signer
+  );
+
+  // 2) Get on-chain price (BigNumber) and compute totalCost
+  let priceBN;
+  try {
+    priceBN = await erc1155.businessPrice(businessType);
+  } catch {
+    priceBN = FALLBACK_BUSINESS_PRICES[businessType];
   }
+  const totalCost = priceBN.mul(businessQuantity);
+
+  // 3) Optional logging to debug
+  console.log({
+    businessType,
+    businessQuantity,
+    price: priceBN.toString(),
+    totalCost: totalCost.toString()
+  });
+
+  // 4) Send the exact same call you made in Remix:
+  try {
+    const tx = await erc1155.mintBusiness(
+      businessType,      // uint256 tokenId
+      businessQuantity,  // uint256 amount
+      userAddress,       // address recipient
+      { value: totalCost }
+    );
+    await tx.wait();
+
+    setBusinessStatus("Business NFT minted successfully!");
+    const bal = await fetchBusinessBalance(businessType, userAddress);
+    setBusinessBalance(bal);
+    const remaining = await fetchRemainingSupply(businessType);
+    setRemainingSupplies(prev => ({ ...prev, [businessType]: remaining }));
+  } catch (err) {
+    console.error("Mint failed:", err);
+    setBusinessStatus(`Mint failed: ${err.reason || err.message}`);
+  }
+}
+
+
+// ───────────────────────────────────────────────────────────────
+// Mint a single Business NFT (type-specific)
+// ───────────────────────────────────────────────────────────────
+async function mintBusinessForType(type) {
+  if (!signer) {
+    return alert("Please connect your wallet first.");
+  }
+
+  const erc1155 = new Contract(
+    ERC1155_BUSINESSES_ADDRESS,
+    ERC1155_BUSINESSES_ABI,
+    signer
+  );
+
+  let priceBN;
+  try {
+    priceBN = await erc1155.businessPrice(type);
+  } catch {
+    priceBN = FALLBACK_BUSINESS_PRICES[type];
+  }
+  const totalCost = priceBN; // minting 1
+
+  console.log({ type, price: priceBN.toString(), totalCost: totalCost.toString() });
+
+  try {
+    const tx = await erc1155.mintBusiness(
+      type,         // uint256 tokenId
+      1,            // uint256 amount
+      userAddress,  // address recipient
+      { value: totalCost }
+    );
+    await tx.wait();
+
+    setBusinessStatus(`Business NFT type ${type} minted successfully!`);
+    const bal = await fetchBusinessBalance(type, userAddress);
+    setBusinessBalance(bal);
+    const remaining = await fetchRemainingSupply(type);
+    setRemainingSupplies(prev => ({ ...prev, [type]: remaining }));
+  } catch (err) {
+    console.error("Mint failed:", err);
+    setBusinessStatus(`Mint failed: ${err.reason || err.message}`);
+  }
+}
 
   const fetchERC20Metadata = async (contractAddress) => {
     try {
@@ -556,7 +583,7 @@ function App() {
   }, []); // You could also refresh this periodically if needed
 
   useEffect(() => {
-    const etherscanProv = new EtherscanProvider("sepolia", ETHERSCAN_API_KEY);
+    const etherscanProv = new EtherscanProvider("base", ETHERSCAN_API_KEY);
     setReadProvider(etherscanProv);
     const alchProvider = new JsonRpcProvider(ALCHEMY_URL);
     alchProvider.batchMaxCount = 1;
@@ -647,30 +674,70 @@ function App() {
     }
   };
 
-  const createTokenBoundAccount = async (tokenId) => {
-    if (!signer) {
-      alert("Please connect your wallet first.");
-      return;
-    }
-    try {
-      setStatus("Creating token-bound account...");
-      const registry = new Contract(ERC6551_REGISTRY_ADDRESS, ERC6551_REGISTRY_ABI, signer);
-      const tx = await registry.createAccount(
-        TOKEN_BOUND_IMPLEMENTATION,
-        CHAIN_ID,
-        ERC721_ADDRESS,
-        tokenId,
-        SALT,
-        { gasLimit: 1000000 }
-      );
-      await tx.wait();
-      setStatus(`Token-bound account for NFT ${tokenId} created successfully!`);
-      fetchTokenBoundAccount(tokenId);
-    } catch (error) {
-      console.error("Error creating token-bound account:", error);
-      setStatus("Error creating token-bound account");
-    }
-  };
+  // ──────────────────────────────────────────────────────────────────────────────
+// Replace your existing createTokenBoundAccount with this:
+const createTokenBoundAccount = async (tokenId) => {
+  if (!signer) {
+    alert("Please connect your wallet first.");
+    return;
+  }
+
+  try {
+    setStatus("Creating token-bound account…");
+
+    // 1) Your deployed implementation address on Base:
+    const impl = TOKEN_BOUND_IMPLEMENTATION;
+    // 2) Base mainnet chainId:
+    const chainId = CHAIN_ID;
+    // 3) Your ERC-721 contract address:
+    const nftContract = ERC721_ADDRESS;
+    // 4) The token ID you want to bind:
+    const tid = tokenId;
+    // 5) Your chosen salt:
+    const salt = SALT;
+    // 6) **Explicit** initData—even if empty:
+    const initData = "0x";
+
+    console.log(
+      "createAccount args:",
+      impl,
+      chainId,
+      nftContract,
+      tid,
+      salt,
+      initData
+    );
+    // You should see six primitive values logged above.
+
+    // 7) Finally, the overrides object
+    const overrides = { gasLimit: 1_000_000 };
+
+    const registry = new Contract(
+      ERC6551_REGISTRY_ADDRESS,
+      ERC6551_REGISTRY_ABI,
+      signer
+    );
+
+    // **Pass exactly 7 parameters** here—
+    // the 6 real ones, then overrides last.
+    const tx = await registry.createAccount(
+      impl,        // 1
+      chainId,     // 2
+      nftContract, // 3
+      tid,         // 4
+      salt,        // 5
+      initData,    // 6
+      overrides    // 7
+    );
+
+    await tx.wait();
+    setStatus(`ERC-6551 account for #${tokenId} created!`);
+    fetchTokenBoundAccount(tokenId);
+  } catch (error) {
+    console.error("Error creating token-bound account:", error);
+    setStatus("Error creating token-bound account");
+  }
+};
 
   const sendFundsFromTBA = async (tokenId, recipient, amount) => {
     if (!signer) {

@@ -1,76 +1,11 @@
 [
 	{
-		"inputs": [],
-		"name": "Create2EmptyBytecode",
-		"type": "error"
-	},
-	{
-		"inputs": [
-			{
-				"internalType": "address",
-				"name": "accountContract",
-				"type": "address"
-			},
-			{
-				"internalType": "uint256",
-				"name": "chainId",
-				"type": "uint256"
-			},
-			{
-				"internalType": "address",
-				"name": "nftContract",
-				"type": "address"
-			},
-			{
-				"internalType": "uint256",
-				"name": "nftId",
-				"type": "uint256"
-			},
-			{
-				"internalType": "uint256",
-				"name": "salt",
-				"type": "uint256"
-			}
-		],
-		"name": "createAccount",
-		"outputs": [
-			{
-				"internalType": "address",
-				"name": "",
-				"type": "address"
-			}
-		],
-		"stateMutability": "nonpayable",
-		"type": "function"
-	},
-	{
-		"inputs": [],
-		"name": "FailedDeployment",
-		"type": "error"
-	},
-	{
-		"inputs": [
-			{
-				"internalType": "uint256",
-				"name": "balance",
-				"type": "uint256"
-			},
-			{
-				"internalType": "uint256",
-				"name": "needed",
-				"type": "uint256"
-			}
-		],
-		"name": "InsufficientBalance",
-		"type": "error"
-	},
-	{
 		"anonymous": false,
 		"inputs": [
 			{
-				"indexed": false,
+				"indexed": true,
 				"internalType": "address",
-				"name": "account",
+				"name": "proxy",
 				"type": "address"
 			},
 			{
@@ -111,7 +46,7 @@
 		"inputs": [
 			{
 				"internalType": "address",
-				"name": "accountContract",
+				"name": "implementation",
 				"type": "address"
 			},
 			{
@@ -121,17 +56,61 @@
 			},
 			{
 				"internalType": "address",
-				"name": "nftContract",
+				"name": "tokenContract",
 				"type": "address"
 			},
 			{
 				"internalType": "uint256",
-				"name": "nftId",
+				"name": "tokenId",
 				"type": "uint256"
 			},
 			{
 				"internalType": "uint256",
-				"name": "salt",
+				"name": "saltInput",
+				"type": "uint256"
+			},
+			{
+				"internalType": "bytes",
+				"name": "initData",
+				"type": "bytes"
+			}
+		],
+		"name": "createAccount",
+		"outputs": [
+			{
+				"internalType": "address",
+				"name": "proxy",
+				"type": "address"
+			}
+		],
+		"stateMutability": "payable",
+		"type": "function"
+	},
+	{
+		"inputs": [
+			{
+				"internalType": "address",
+				"name": "implementation",
+				"type": "address"
+			},
+			{
+				"internalType": "uint256",
+				"name": "chainId",
+				"type": "uint256"
+			},
+			{
+				"internalType": "address",
+				"name": "tokenContract",
+				"type": "address"
+			},
+			{
+				"internalType": "uint256",
+				"name": "tokenId",
+				"type": "uint256"
+			},
+			{
+				"internalType": "uint256",
+				"name": "saltInput",
 				"type": "uint256"
 			}
 		],
